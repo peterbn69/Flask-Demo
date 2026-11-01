@@ -8,4 +8,4 @@ def hello():
 
 @greet_bp.get("/goodbye")
 def goodbye():
-    return "Goodbye. I hope you enjoy my Python Flask project"
+    return "Goodbye. I hope you enjoy my Python Flask project."
