@@ -9,10 +9,12 @@ bp = Blueprint("items", __name__)
 
 @bp.route("/item")
 class ItemList(MethodView):
+    @bp.response(200, ItemSchema(many=True))
     def get(self):
-        return {"items": list(items.values())}
+        return items.values()
 
     @bp.arguments(ItemSchema)
+    @bp.response(201, ItemSchema)
     def post(self, item_data):
         get_or_404(stores, item_data["store_id"], "Store")
         exists(items, item_data, "name", "store_id")
@@ -21,10 +23,12 @@ class ItemList(MethodView):
 
 @bp.route("/item/<string:item_id>")
 class Item(MethodView):
+    @bp.response(200, ItemSchema)
     def get(self, item_id):
         return get_or_404(items, item_id, "Item")
 
     @bp.arguments(ItemUpdateSchema)
+    @bp.response(200, ItemSchema)
     def put(self, item_data, item_id):
         item = get_or_404(items, item_id, "Item")
         item |= item_data

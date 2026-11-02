@@ -9,16 +9,19 @@ bp = Blueprint("stores", __name__)
 
 @bp.route("/store")
 class StoreList(MethodView):
+    @bp.response(200, StoreSchema(many=True))
     def get(self):
         return {"stores": list(stores.values())}
 
     @bp.arguments(StoreSchema)
+    @bp.response(201, StoreSchema)
     def post(self, store_data):
         exists(stores, store_data, "name")
         return create(stores, store_data), 201
 
 @bp.route("/store/<string:store_id>")
 class Store(MethodView):
+    @bp.response(200, StoreSchema)
     def get(self, store_id):
         return get_or_404(stores, store_id, "Store")
 
