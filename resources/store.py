@@ -3,40 +3,25 @@ from flask.views import MethodView
 from resources.db import stores
 from resources.utility import includes, exists, get_or_404, create, delete_or_404
 
-store_bp = Blueprint("stores", __name__)
+bp = Blueprint("stores", __name__)
 
-@store_bp.route("/store")
 class StoreList(MethodView):
     def get(self):
-        pass
+        return {"stores": list(stores.values())}
 
     def post(self):
-        pass
+        store_data = request.get_json()
+        includes(store_data, "name")
+        exists(stores, store_data, "name")
 
-@store_bp.route("/store/<string:store_id>")
+        return create(stores, store_data), 201
+
 class Store(MethodView):
-    def get(self):
-        pass
+    def get(self, store_id):
+        return get_or_404(stores, store_id, "Store")
 
-    def delete(self):
-        pass
+    def delete(self, store_id):
+        return delete_or_404(stores, store_id, "Store")
 
-
-@store_bp.route("/store", methods=["GET", "POST"])
-def store_collection():
-    if request.method == "GET":
-        return {"stores": list(stores.values())}
-    
-    store_data = request.get_json()
-    includes(store_data, "name")
-    exists(stores, store_data, "name")
-
-    return create(stores, store_data), 201
-
-@store_bp.get("/store/<string:store_id>")
-def get_store(store_id):
-    return get_or_404(stores, store_id, "Store")
-
-@store_bp.delete("/store/<string:store_id>")
-def delete_store(store_id):
-    return delete_or_404(stores, store_id, "Store")
+bp.add_url_rule("/store", view_func=StoreList.as_view("store_list"))
+bp.add_url_rule("/store/<string:store_id>", view_func=Store.as_view("store"))
