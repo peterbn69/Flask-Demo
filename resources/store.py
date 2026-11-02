@@ -1,4 +1,5 @@
-from flask import Blueprint, request
+from flask import request
+from flask_smorest import Blueprint
 from flask.views import MethodView
 from resources.db import stores
 from resources.utility import includes, exists, get_or_404, create, delete_or_404
@@ -23,5 +24,5 @@ class Store(MethodView):
     def delete(self, store_id):
         return delete_or_404(stores, store_id, "Store")
 
-bp.add_url_rule("/store", view_func=StoreList.as_view("store_list"))
-bp.add_url_rule("/store/<string:store_id>", view_func=Store.as_view("store"))
+bp.add_url_rule("/store", view_func=StoreList)
+bp.add_url_rule("/store/<string:store_id>", view_func=Store)
