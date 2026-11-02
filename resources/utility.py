@@ -2,11 +2,6 @@ import uuid
 
 from flask_smorest import abort
 
-def includes(collection: dict, *keys: str) -> None:
-    missing_keys = [key for key in keys if key not in collection]
-
-    if missing_keys: abort(400, message=f"Bad request. Missing required keys: {', '.join(missing_keys)}.")
-
 def exists(old: dict, new: dict, *keys: str) -> None:
     for item in old.values():
         if all(item[key] == new[key] for key in keys):
