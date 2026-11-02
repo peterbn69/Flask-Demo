@@ -1,8 +1,28 @@
 from flask import Blueprint, request
+from flask.views import MethodView
 from resources.db import stores, items
 from resources.utility import includes, exists, get_or_404, create, delete_or_404
 
-item_bp = Blueprint("item", __name__)
+item_bp = Blueprint("items", __name__)
+
+@item_bp.route("/item")
+class ItemList(MethodView):
+    def get():
+        pass
+
+    def post():
+        pass
+
+@item_bp.route("item/<string:item_id>")
+class Item(MethodView):
+    def get(self):
+        pass
+
+    def put(self):
+        pass
+
+    def delete(self):
+        pass
 
 @item_bp.route("/item", methods=["GET", "POST"])
 def item_collection():
