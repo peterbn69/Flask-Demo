@@ -1,9 +1,11 @@
-from flask import request
-from flask_smorest import Blueprint
 from flask.views import MethodView
-from resources.db import stores
-from resources.utility import exists, get_or_404, create, delete_or_404
-from resources.schemas import StoreSchema
+from flask_smorest import Blueprint
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+from db import db
+from models import StoreModel
+from resources.utility import respond
+from schemas import StoreSchema
 
 bp = Blueprint("stores", __name__)
 
@@ -11,19 +13,39 @@ bp = Blueprint("stores", __name__)
 class StoreList(MethodView):
     @bp.response(200, StoreSchema(many=True))
     def get(self):
-        return {"stores": list(stores.values())}
+        return StoreModel.query.all()
 
     @bp.arguments(StoreSchema)
     @bp.response(201, StoreSchema)
     def post(self, store_data):
-        exists(stores, store_data, "name")
-        return create(stores, store_data), 201
+        store = StoreModel(**store_data)
 
-@bp.route("/store/<string:store_id>")
+        try:
+            db.session.add(store)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            respond(409, "The store conflicts with an existing record.")
+        except SQLAlchemyError:
+            db.session.rollback()
+            respond(500, "An error occurred while creating the store.")
+
+        return store
+
+@bp.route("/store/<int:store_id>")
 class Store(MethodView):
     @bp.response(200, StoreSchema)
     def get(self, store_id):
-        return get_or_404(stores, store_id, "Store")
+        return StoreModel.query.get_or_404(store_id)
 
     def delete(self, store_id):
-        return delete_or_404(stores, store_id, "Store")
+        store = StoreModel.query.get_or_404(store_id)
+
+        try:
+            db.session.delete(store)
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            respond(500, "An error occurred while deleting the store.")
+
+        return {"message": "Store and its items deleted."}, 200

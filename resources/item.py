@@ -1,9 +1,11 @@
-from flask import request
-from flask_smorest import Blueprint
 from flask.views import MethodView
-from resources.db import stores, items
-from resources.utility import exists, get_or_404, create, delete_or_404
-from resources.schemas import ItemSchema, ItemUpdateSchema
+from flask_smorest import Blueprint
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+from db import db
+from models import ItemModel, StoreModel
+from resources.utility import respond
+from schemas import ItemSchema, ItemUpdateSchema
 
 bp = Blueprint("items", __name__)
 
@@ -11,28 +13,60 @@ bp = Blueprint("items", __name__)
 class ItemList(MethodView):
     @bp.response(200, ItemSchema(many=True))
     def get(self):
-        return items.values()
+        return ItemModel.query.all()
 
     @bp.arguments(ItemSchema)
     @bp.response(201, ItemSchema)
     def post(self, item_data):
-        get_or_404(stores, item_data["store_id"], "Store")
-        exists(items, item_data, "name", "store_id")
+        StoreModel.query.get_or_404(item_data["store_id"])
 
-        return create(items, item_data), 201
+        item = ItemModel(**item_data)
 
-@bp.route("/item/<string:item_id>")
+        try:
+            db.session.add(item)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            respond(409, "The item conflicts with an existing record.")
+        except SQLAlchemyError:
+            db.session.rollback()
+            respond(500, "An error occurred while creating the item.")
+
+        return item
+
+@bp.route("/item/<int:item_id>")
 class Item(MethodView):
     @bp.response(200, ItemSchema)
     def get(self, item_id):
-        return get_or_404(items, item_id, "Item")
+        return ItemModel.query.get_or_404(item_id)
 
     @bp.arguments(ItemUpdateSchema)
     @bp.response(200, ItemSchema)
     def put(self, item_data, item_id):
-        item = get_or_404(items, item_id, "Item")
-        item |= item_data
+        item = ItemModel.query.get_or_404(item_id)
+
+        for field, value in item_data.items():
+            setattr(item, field, value)
+
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            respond(409, "The item conflicts with an existing record.")
+        except SQLAlchemyError:
+            db.session.rollback()
+            respond(500, "An error occurred while updating the item.")
+
         return item
 
     def delete(self, item_id):
-        return delete_or_404(items, item_id, "Item")
+        item = ItemModel.query.get_or_404(item_id)
+
+        try:
+            db.session.delete(item)
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            respond(500, "An error occurred while deleting the item.")
+
+        return {"message": "Item deleted."}, 200
