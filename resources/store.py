@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from db import db
 from models import StoreModel
-from resources.utility import respond
+from resources.utility import message_response, respond
 from schemas import StoreSchema
 
 bp = Blueprint("stores", __name__)
@@ -48,4 +48,4 @@ class Store(MethodView):
             db.session.rollback()
             respond(500, "An error occurred while deleting the store.")
 
-        return {"message": "Store and its items deleted."}, 200
+        return message_response(200, "Store, its items, and its tags deleted.")
