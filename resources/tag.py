@@ -3,9 +3,9 @@ from flask_smorest import Blueprint
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from db import db
-from models import TagModel, StoreModel
+from models import TagModel, StoreModel, ItemModel
 from resources.utility import message_response, respond
-from schemas import TagSchema
+from schemas import TagSchema, TagAndItemSchema
 
 bp = Blueprint("tags", __name__)
 
@@ -33,6 +33,52 @@ class TagsInStore(MethodView):
             respond(500, "An error occurred while creating the tag.")
 
         return tag
+
+@bp.route("/item/<int:item_id>/tag/<int:tag_id>")
+class LinkTagsToItem(MethodView):
+    @bp.response(201, TagSchema)
+    def post(self, item_id, tag_id):
+        item = ItemModel.query.get_or_404(item_id)
+        tag = TagModel.query.get_or_404(tag_id)
+
+        if item.store_id != tag.store_id:
+            respond(400, "The item and tag must belong to the same store.")
+
+        if tag in item.tags:
+            respond(409, "The tag is already linked to the item.")
+
+        try:
+            item.tags.append(tag)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            respond(409, "The item and tag could not be linked due to a conflict.")
+        except SQLAlchemyError:
+            db.session.rollback()
+            respond(500, "An error occurred while linking the tag.")
+
+        return tag
+
+    @bp.response(200, TagAndItemSchema)
+    def delete(self, item_id, tag_id):
+        item = ItemModel.query.get_or_404(item_id)
+        tag = TagModel.query.get_or_404(tag_id)
+
+        if tag not in item.tags:
+            respond(404, "The tag is not linked to the item.")
+
+        try:
+            item.tags.remove(tag)
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            respond(500, "An error occurred while unlinking the tag.")
+
+        return {
+            "message": "Tag unlinked from item.",
+            "item": item,
+            "tag": tag,
+        }
 
 @bp.route("/tag/<int:tag_id>")
 class Tag(MethodView):
