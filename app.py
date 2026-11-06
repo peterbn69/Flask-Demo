@@ -1,18 +1,19 @@
 import os
 
 from flask import Flask
+from flask_jwt_extended import JWTManager
 from flask_smorest import Api
 
-from resources.store import bp as store_bp
-from resources.item import bp as item_bp
-from resources.tag import bp as tag_bp
 from db import db
-import models
+from resources.item import bp as item_bp
+from resources.store import bp as store_bp
+from resources.tag import bp as tag_bp
 
-def create_app(db_url=None) -> Flask:
+
+def create_app(db_url: str | None = None) -> Flask:
     app = Flask(__name__)
 
-    # ---------- SWAGGER DOCUMENTATION ----------
+    # ---------- API CONFIG ----------
     app.config["PROPAGATE_EXCEPTIONS"] = True
     app.config["API_TITLE"] = "Stores REST API"
     app.config["API_VERSION"] = "v1"
@@ -30,6 +31,10 @@ def create_app(db_url=None) -> Flask:
         db.create_all()
 
     api = Api(app)
+
+    jwt = JWTManager(app)
+
+    app.config["JWT_SECRET_KEY"] = "13706954"
 
     api.register_blueprint(store_bp)
     api.register_blueprint(item_bp)

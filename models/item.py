@@ -1,5 +1,6 @@
 from db import db
 
+
 class ItemModel(db.Model):
     __tablename__ = "items"
     __table_args__ = (db.UniqueConstraint("store_id", "name"),)

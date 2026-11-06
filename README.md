@@ -40,21 +40,23 @@ flask run
 
 The API is now available at <http://127.0.0.1:5000> and the Swagger UI at <http://127.0.0.1:5000/swagger-ui>.
 
-`.flaskenv` sets `FLASK_APP=app` and enables debug mode (auto-reload). Tables are created automatically on startup.
+`.flaskenv` sets `FLASK_APP=app` and enables debug mode (auto-reload) for local development. Tables are created automatically on startup.
 
 ### Configuration
 
-| Variable       | Default            | Description                    |
-| -------------- | ------------------ | ------------------------------ |
-| `DATABASE_URL` | `sqlite:///data.db` | SQLAlchemy database URL        |
+| Variable       | Default             | Description              |
+| -------------- | ------------------- | ------------------------ |
+| `DATABASE_URL` | `sqlite:///data.db` | SQLAlchemy database URL  |
 
-Variables can be placed in a `.env` file (loaded via `python-dotenv`).
+Variables can be placed in a `.env` file (loaded via `python-dotenv`). `.env` is ignored by Git.
 
 ### Docker
 
+Run the following commands if you want to run the API in a Docker container. The API will be available at the same URL as above.
+
 ```bash
 docker build -t flask-demo .
-docker run -dp 5000:5000 -w /app -v "${PWD}:/app" --name flask-container flask-demo
+docker run -dp 5000:5000 --name flask-container flask-demo
 ```
 
 ## API overview
@@ -70,7 +72,7 @@ docker run -dp 5000:5000 -w /app -v "${PWD}:/app" --name flask-container flask-d
 | GET    | `/item`                           | List all items                       |
 | POST   | `/item`                           | Create an item                       |
 | GET    | `/item/<item_id>`                 | Get an item                          |
-| PUT    | `/item/<item_id>`                 | Update an item's name and/or price   |
+| PATCH  | `/item/<item_id>`                 | Partially update an item's name/price |
 | DELETE | `/item/<item_id>`                 | Delete an item                       |
 | POST   | `/item/<item_id>/tag/<tag_id>`    | Link a tag to an item                |
 | DELETE | `/item/<item_id>/tag/<tag_id>`    | Unlink a tag from an item            |
@@ -95,17 +97,37 @@ curl -X POST http://127.0.0.1:5000/store/1/tag \
   -H "Content-Type: application/json" \
   -d '{"name": "furniture"}'
 curl -X POST http://127.0.0.1:5000/item/1/tag/1
+
+# Change only the item's price (other fields are left as they are)
+curl -X PATCH http://127.0.0.1:5000/item/1 \
+  -H "Content-Type: application/json" \
+  -d '{"price": "19.99"}'
 ```
+
+### Error responses
+
+Errors are returned as JSON with a `code`, a `status`, and usually a `message`.
+
+| Status | When                                                                           |
+| ------ | ------------------------------------------------------------------------------ |
+| 400    | Linking an item and a tag that belong to different stores                      |
+| 404    | The store, item, or tag does not exist, or the tag is not linked to the item   |
+| 409    | A duplicate name in the same store, or a tag that is already linked to an item |
+| 422    | The request body is missing a required field or has an invalid one             |
+| 500    | The database could not complete the operation                                  |
 
 ## Project structure
 
 ```
-app.py          Application factory and configuration
-db.py           SQLAlchemy instance
-schemas.py      Marshmallow schemas
-models/         SQLAlchemy models (store, item, tag, items_tags)
-resources/      Flask-Smorest blueprints (store, item, tag, utility)
-Dockerfile      Container image definition
+app.py            Application factory and configuration
+db.py             SQLAlchemy instance
+schemas.py        Marshmallow schemas
+models/           SQLAlchemy models (store, item, tag, items_tags, user)
+resources/        Flask-Smorest blueprints (store, item, tag) and shared helpers (utils)
+Dockerfile        Container image definition
+.dockerignore     Files kept out of the Docker image
+.editorconfig     Editor settings (UTF-8, LF, 4-space indent for Python)
+.flaskenv         Flask CLI settings for local development
 ```
 
 ## Next steps

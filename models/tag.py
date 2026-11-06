@@ -1,5 +1,6 @@
 from db import db
 
+
 class TagModel(db.Model):
     __tablename__ = "tags"
     __table_args__ = (db.UniqueConstraint("store_id", "name"),)
