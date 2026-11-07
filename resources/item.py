@@ -1,5 +1,3 @@
-from typing import Any
-
 from flask.views import MethodView
 from flask_smorest import Blueprint
 
@@ -14,13 +12,13 @@ bp = Blueprint("items", __name__)
 @bp.route("/item")
 class ItemList(MethodView):
     @bp.response(200, ItemSchema(many=True))
-    def get(self) -> list[ItemModel]:
+    def get(self):
         return ItemModel.query.all()
 
     @bp.arguments(ItemSchema)
     @bp.response(201, ItemSchema)
-    def post(self, item_data: dict[str, Any]) -> ItemModel:
-        StoreModel.query.get_or_404(item_data["store_id"])
+    def post(self, item_data):
+        db.get_or_404(StoreModel, item_data["store_id"])
 
         item = ItemModel(**item_data)
         db.session.add(item)
@@ -35,13 +33,13 @@ class ItemList(MethodView):
 @bp.route("/item/<int:item_id>")
 class Item(MethodView):
     @bp.response(200, ItemSchema)
-    def get(self, item_id: int) -> ItemModel:
-        return ItemModel.query.get_or_404(item_id)
+    def get(self, item_id):
+        return db.get_or_404(ItemModel, item_id)
 
     @bp.arguments(ItemUpdateSchema)
     @bp.response(200, ItemSchema)
-    def patch(self, item_data: dict[str, Any], item_id: int) -> ItemModel:
-        item = ItemModel.query.get_or_404(item_id)
+    def patch(self, item_data, item_id):
+        item = db.get_or_404(ItemModel, item_id)
 
         for field, value in item_data.items():
             setattr(item, field, value)
@@ -53,8 +51,8 @@ class Item(MethodView):
 
         return item
 
-    def delete(self, item_id: int) -> tuple[dict[str, str], int]:
-        item = ItemModel.query.get_or_404(item_id)
+    def delete(self, item_id):
+        item = db.get_or_404(ItemModel, item_id)
 
         db.session.delete(item)
         commit_or_abort("An error occurred while deleting the item.")

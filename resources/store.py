@@ -1,5 +1,3 @@
-from typing import Any
-
 from flask.views import MethodView
 from flask_smorest import Blueprint
 
@@ -14,12 +12,12 @@ bp = Blueprint("stores", __name__)
 @bp.route("/store")
 class StoreList(MethodView):
     @bp.response(200, StoreSchema(many=True))
-    def get(self) -> list[StoreModel]:
+    def get(self):
         return StoreModel.query.all()
 
     @bp.arguments(StoreSchema)
     @bp.response(201, StoreSchema)
-    def post(self, store_data: dict[str, Any]) -> StoreModel:
+    def post(self, store_data):
         store = StoreModel(**store_data)
         db.session.add(store)
         commit_or_abort(
@@ -33,11 +31,11 @@ class StoreList(MethodView):
 @bp.route("/store/<int:store_id>")
 class Store(MethodView):
     @bp.response(200, StoreSchema)
-    def get(self, store_id: int) -> StoreModel:
-        return StoreModel.query.get_or_404(store_id)
+    def get(self, store_id):
+        return db.get_or_404(StoreModel, store_id)
 
-    def delete(self, store_id: int) -> tuple[dict[str, str], int]:
-        store = StoreModel.query.get_or_404(store_id)
+    def delete(self, store_id):
+        store = db.get_or_404(StoreModel, store_id)
 
         db.session.delete(store)
         commit_or_abort("An error occurred while deleting the store.")

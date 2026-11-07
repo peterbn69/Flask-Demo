@@ -1,5 +1,3 @@
-from typing import Any
-
 from flask.views import MethodView
 from flask_smorest import Blueprint
 
@@ -14,14 +12,14 @@ bp = Blueprint("tags", __name__)
 @bp.route("/store/<int:store_id>/tag")
 class TagsInStore(MethodView):
     @bp.response(200, TagSchema(many=True))
-    def get(self, store_id: int) -> list[TagModel]:
-        store = StoreModel.query.get_or_404(store_id)
+    def get(self, store_id):
+        store = db.get_or_404(StoreModel, store_id)
         return store.tags.all()
 
     @bp.arguments(TagSchema)
     @bp.response(201, TagSchema)
-    def post(self, tag_data: dict[str, Any], store_id: int) -> TagModel:
-        StoreModel.query.get_or_404(store_id)
+    def post(self, tag_data, store_id):
+        db.get_or_404(StoreModel, store_id)
 
         tag = TagModel(**tag_data, store_id=store_id)
         db.session.add(tag)
@@ -36,9 +34,9 @@ class TagsInStore(MethodView):
 @bp.route("/item/<int:item_id>/tag/<int:tag_id>")
 class LinkTagsToItem(MethodView):
     @bp.response(201, TagSchema)
-    def post(self, item_id: int, tag_id: int) -> TagModel:
-        item = ItemModel.query.get_or_404(item_id)
-        tag = TagModel.query.get_or_404(tag_id)
+    def post(self, item_id, tag_id):
+        item = db.get_or_404(ItemModel, item_id)
+        tag = db.get_or_404(TagModel, tag_id)
 
         if item.store_id != tag.store_id:
             abort_with(400, "The item and tag must belong to the same store.")
@@ -55,9 +53,9 @@ class LinkTagsToItem(MethodView):
         return tag
 
     @bp.response(200, TagAndItemSchema)
-    def delete(self, item_id: int, tag_id: int) -> dict[str, Any]:
-        item = ItemModel.query.get_or_404(item_id)
-        tag = TagModel.query.get_or_404(tag_id)
+    def delete(self, item_id, tag_id):
+        item = db.get_or_404(ItemModel, item_id)
+        tag = db.get_or_404(TagModel, tag_id)
 
         if tag not in item.tags:
             abort_with(404, "The tag is not linked to the item.")
@@ -75,11 +73,11 @@ class LinkTagsToItem(MethodView):
 @bp.route("/tag/<int:tag_id>")
 class Tag(MethodView):
     @bp.response(200, TagSchema)
-    def get(self, tag_id: int) -> TagModel:
-        return TagModel.query.get_or_404(tag_id)
+    def get(self, tag_id):
+        return db.get_or_404(TagModel, tag_id)
 
-    def delete(self, tag_id: int) -> tuple[dict[str, str], int]:
-        tag = TagModel.query.get_or_404(tag_id)
+    def delete(self, tag_id):
+        tag = db.get_or_404(TagModel, tag_id)
 
         db.session.delete(tag)
         commit_or_abort("An error occurred while deleting the tag.")
