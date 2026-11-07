@@ -2,10 +2,10 @@ from flask.views import MethodView
 from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint
 
-from db import db
-from models import StoreModel
-from resources.utils import commit_or_abort, message_response
-from schemas import StoreSchema
+from app.extensions import db
+from app.models import StoreModel
+from app.resources.helpers import commit_or_abort, message_response
+from app.schemas import StoreSchema
 
 bp = Blueprint("stores", __name__)
 

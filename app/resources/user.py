@@ -2,10 +2,11 @@ from flask.views import MethodView
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 from flask_smorest import Blueprint
 
-from db import db
-from models import UserModel
-from resources.utils import abort_with, commit_or_abort, hash_password, message_response, verify_password
-from schemas import UserSchema
+from app.extensions import db
+from app.models import UserModel
+from app.resources.helpers import abort_with, commit_or_abort, message_response
+from app.schemas import UserSchema
+from app.security import hash_password, verify_password
 
 bp = Blueprint("users", __name__)
 

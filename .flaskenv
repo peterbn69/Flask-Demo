@@ -1,2 +1,2 @@
-FLASK_APP=app
+FLASK_APP=wsgi
 FLASK_DEBUG=1

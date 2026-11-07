@@ -42,7 +42,7 @@ flask run
 
 The API is now available at <http://127.0.0.1:5000> and the Swagger UI at <http://127.0.0.1:5000/swagger-ui>.
 
-`.flaskenv` sets `FLASK_APP=app` and enables debug mode (auto-reload) for local development. Tables are created automatically on startup.
+`.flaskenv` sets `FLASK_APP=wsgi` and enables debug mode (auto-reload) for local development. Tables are created automatically on startup.
 
 ### Configuration
 
@@ -51,11 +51,14 @@ The API is now available at <http://127.0.0.1:5000> and the Swagger UI at <http:
 | `DATABASE_URL`   | `sqlite:///data.db` | SQLAlchemy database URL                                              |
 | `JWT_SECRET_KEY` | none (required)     | Secret used to sign JWTs; the app fails to start if it is not set    |
 
-Variables can be placed in a `.env` file (loaded via `python-dotenv`). `.env` is ignored by Git and by Docker builds, so create your own, for example:
+Variables can be placed in a `.env` file (loaded via `python-dotenv`). `.env` is ignored by Git and by Docker builds, so create your own from the template:
 
+```bash
+cp .env.example .env
+# Windows: copy .env.example .env
 ```
-JWT_SECRET_KEY=replace-with-a-long-random-string
-```
+
+Then set `JWT_SECRET_KEY` in `.env` to a long random string.
 
 ### Docker
 
@@ -150,17 +153,22 @@ Errors are returned as JSON with a `code`, a `status`, and usually a `message`.
 ## Project structure
 
 ```
-app.py            Application factory and configuration
-db.py             SQLAlchemy instance
-schemas.py        Marshmallow schemas
-models/           SQLAlchemy models (store, item, tag, items_tags, user)
-resources/        Flask-Smorest blueprints (store, item, tag, user) and shared helpers (utils)
-requirements.txt  Python dependencies
-Dockerfile        Container image definition
-.dockerignore     Files kept out of the Docker image
-.editorconfig     Editor settings (UTF-8, LF, 4-space indent for Python)
-.flaskenv         Flask CLI settings for local development
-.gitattributes    Normalizes line endings to LF
+wsgi.py               Entry point (creates the app)
+app/
+  __init__.py         Application factory (create_app)
+  config.py           Configuration loaded from environment variables
+  extensions.py       Shared extension instances (db, api, jwt)
+  security.py         Password hashing and verification
+  models/             SQLAlchemy models (store, item, tag, items_tags, user)
+  resources/          Flask-Smorest blueprints (store, item, tag, user) and shared helpers (helpers)
+  schemas/            Marshmallow schemas (plain, item, store, tag, user) and shared validators (common)
+.env.example          Template for the .env file
+requirements.txt      Python dependencies
+Dockerfile            Container image definition
+.dockerignore         Files kept out of the Docker image
+.editorconfig         Editor settings (UTF-8, LF, 4-space indent for Python)
+.flaskenv             Flask CLI settings for local development
+.gitattributes        Normalizes line endings to LF
 ```
 
 ## Next steps

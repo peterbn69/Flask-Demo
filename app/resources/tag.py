@@ -2,10 +2,10 @@ from flask.views import MethodView
 from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint
 
-from db import db
-from models import ItemModel, StoreModel, TagModel
-from resources.utils import abort_with, commit_or_abort, message_response
-from schemas import TagAndItemSchema, TagSchema
+from app.extensions import db
+from app.models import ItemModel, StoreModel, TagModel
+from app.resources.helpers import abort_with, commit_or_abort, message_response
+from app.schemas import TagAndItemSchema, TagSchema
 
 bp = Blueprint("tags", __name__)
 
