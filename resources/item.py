@@ -1,4 +1,5 @@
 from flask.views import MethodView
+from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint
 
 from db import db
@@ -13,8 +14,9 @@ bp = Blueprint("items", __name__)
 class ItemList(MethodView):
     @bp.response(200, ItemSchema(many=True))
     def get(self):
-        return ItemModel.query.all()
+        return db.session.scalars(db.select(ItemModel)).all()
 
+    @jwt_required()
     @bp.arguments(ItemSchema)
     @bp.response(201, ItemSchema)
     def post(self, item_data):
@@ -36,6 +38,7 @@ class Item(MethodView):
     def get(self, item_id):
         return db.get_or_404(ItemModel, item_id)
 
+    @jwt_required()
     @bp.arguments(ItemUpdateSchema)
     @bp.response(200, ItemSchema)
     def patch(self, item_data, item_id):
@@ -51,6 +54,7 @@ class Item(MethodView):
 
         return item
 
+    @jwt_required()
     def delete(self, item_id):
         item = db.get_or_404(ItemModel, item_id)
 

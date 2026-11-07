@@ -1,4 +1,5 @@
 from flask.views import MethodView
+from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint
 
 from db import db
@@ -13,8 +14,9 @@ bp = Blueprint("stores", __name__)
 class StoreList(MethodView):
     @bp.response(200, StoreSchema(many=True))
     def get(self):
-        return StoreModel.query.all()
+        return db.session.scalars(db.select(StoreModel)).all()
 
+    @jwt_required()
     @bp.arguments(StoreSchema)
     @bp.response(201, StoreSchema)
     def post(self, store_data):
@@ -34,6 +36,7 @@ class Store(MethodView):
     def get(self, store_id):
         return db.get_or_404(StoreModel, store_id)
 
+    @jwt_required()
     def delete(self, store_id):
         store = db.get_or_404(StoreModel, store_id)
 

@@ -1,4 +1,5 @@
 from flask.views import MethodView
+from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint
 
 from db import db
@@ -16,6 +17,7 @@ class TagsInStore(MethodView):
         store = db.get_or_404(StoreModel, store_id)
         return store.tags.all()
 
+    @jwt_required()
     @bp.arguments(TagSchema)
     @bp.response(201, TagSchema)
     def post(self, tag_data, store_id):
@@ -33,6 +35,7 @@ class TagsInStore(MethodView):
 
 @bp.route("/item/<int:item_id>/tag/<int:tag_id>")
 class LinkTagsToItem(MethodView):
+    @jwt_required()
     @bp.response(201, TagSchema)
     def post(self, item_id, tag_id):
         item = db.get_or_404(ItemModel, item_id)
@@ -52,6 +55,7 @@ class LinkTagsToItem(MethodView):
 
         return tag
 
+    @jwt_required()
     @bp.response(200, TagAndItemSchema)
     def delete(self, item_id, tag_id):
         item = db.get_or_404(ItemModel, item_id)
@@ -76,6 +80,7 @@ class Tag(MethodView):
     def get(self, tag_id):
         return db.get_or_404(TagModel, tag_id)
 
+    @jwt_required()
     def delete(self, tag_id):
         tag = db.get_or_404(TagModel, tag_id)
 

@@ -9,7 +9,8 @@ A REST API for managing stores, the items they sell, and tags that group items w
 - CRUD endpoints for stores, items, and tags
 - Many-to-many relationships between items and tags (tags can only be linked to items in the same store)
 - Cascading deletes: deleting a store removes its items and tags
-- User registration with Argon2 password hashing (passwords are never returned in responses)
+- User registration and login with Argon2 password hashing (passwords are never returned in responses)
+- JWT authentication: creating, updating, and deleting data requires a bearer token
 - Request/response validation with Marshmallow (names are 1–80 characters, passwords 8–128)
 - Interactive API docs at `/swagger-ui`
 - SQLite by default; configurable via `DATABASE_URL`
@@ -48,15 +49,13 @@ The API is now available at <http://127.0.0.1:5000> and the Swagger UI at <http:
 | Variable         | Default             | Description                                                          |
 | ---------------- | ------------------- | -------------------------------------------------------------------- |
 | `DATABASE_URL`   | `sqlite:///data.db` | SQLAlchemy database URL                                              |
-| `JWT_SECRET_KEY` | none                | Secret used to sign JWTs (read at startup; see the note below)       |
+| `JWT_SECRET_KEY` | none (required)     | Secret used to sign JWTs; the app fails to start if it is not set    |
 
 Variables can be placed in a `.env` file (loaded via `python-dotenv`). `.env` is ignored by Git and by Docker builds, so create your own, for example:
 
 ```
 JWT_SECRET_KEY=replace-with-a-long-random-string
 ```
-
-> **Note:** `JWT_SECRET_KEY` is loaded, but JWT handling (`JWTManager`) is not enabled yet, so no endpoint requires a token and there is no login endpoint.
 
 ### Docker
 
@@ -69,57 +68,69 @@ docker run -dp 5000:5000 --env-file .env --name flask-container flask-demo
 
 ## API overview
 
-| Method | Endpoint                          | Description                          |
-| ------ | --------------------------------- | ------------------------------------ |
-| GET    | `/store`                          | List all stores                      |
-| POST   | `/store`                          | Create a store                       |
-| GET    | `/store/<store_id>`               | Get a store                          |
-| DELETE | `/store/<store_id>`               | Delete a store, its items and tags   |
-| GET    | `/store/<store_id>/tag`           | List a store's tags                  |
-| POST   | `/store/<store_id>/tag`           | Create a tag in a store              |
-| GET    | `/item`                           | List all items                       |
-| POST   | `/item`                           | Create an item                       |
-| GET    | `/item/<item_id>`                 | Get an item                          |
-| PATCH  | `/item/<item_id>`                 | Partially update an item's name/price |
-| DELETE | `/item/<item_id>`                 | Delete an item                       |
-| POST   | `/item/<item_id>/tag/<tag_id>`    | Link a tag to an item                |
-| DELETE | `/item/<item_id>/tag/<tag_id>`    | Unlink a tag from an item            |
-| GET    | `/tag/<tag_id>`                   | Get a tag                            |
-| DELETE | `/tag/<tag_id>`                   | Delete a tag                         |
-| POST   | `/register`                       | Register a user                      |
-| GET    | `/user/<user_id>`                 | Get a user (id and username only)    |
-| DELETE | `/user/<user_id>`                 | Delete a user                        |
+| Method | Endpoint                          | Auth | Description                           |
+| ------ | --------------------------------- | ---- | ------------------------------------- |
+| GET    | `/store`                          |      | List all stores                       |
+| POST   | `/store`                          | JWT  | Create a store                        |
+| GET    | `/store/<store_id>`               |      | Get a store                           |
+| DELETE | `/store/<store_id>`               | JWT  | Delete a store, its items and tags    |
+| GET    | `/store/<store_id>/tag`           |      | List a store's tags                   |
+| POST   | `/store/<store_id>/tag`           | JWT  | Create a tag in a store               |
+| GET    | `/item`                           |      | List all items                        |
+| POST   | `/item`                           | JWT  | Create an item                        |
+| GET    | `/item/<item_id>`                 |      | Get an item                           |
+| PATCH  | `/item/<item_id>`                 | JWT  | Partially update an item's name/price |
+| DELETE | `/item/<item_id>`                 | JWT  | Delete an item                        |
+| POST   | `/item/<item_id>/tag/<tag_id>`    | JWT  | Link a tag to an item                 |
+| DELETE | `/item/<item_id>/tag/<tag_id>`    | JWT  | Unlink a tag from an item             |
+| GET    | `/tag/<tag_id>`                   |      | Get a tag                             |
+| DELETE | `/tag/<tag_id>`                   | JWT  | Delete a tag                          |
+| POST   | `/register`                       |      | Register a user                       |
+| POST   | `/login`                          |      | Log in and receive an access token    |
+| GET    | `/user/<user_id>`                 | JWT  | Get a user (id and username only)     |
+| DELETE | `/user/<user_id>`                 | JWT  | Delete your own account               |
 
-Authentication is not enforced yet: all endpoints, including the user endpoints, are open.
+Endpoints marked JWT need an `Authorization: Bearer <access_token>` header. Get a token from `/login`. A missing, invalid, or expired token returns 401.
 
 ### Example
 
 ```bash
+# Register a user (password must be 8-128 characters)
+curl -X POST http://127.0.0.1:5000/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "password": "correct-horse-battery"}'
+
+# Log in and copy the "access_token" from the response
+curl -X POST http://127.0.0.1:5000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "password": "correct-horse-battery"}'
+TOKEN=<paste the access_token here>
+
 # Create a store
 curl -X POST http://127.0.0.1:5000/store \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "My Store"}'
 
 # Create an item in that store
 curl -X POST http://127.0.0.1:5000/item \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "Chair", "price": "17.99", "store_id": 1}'
 
 # Create a tag and link it to the item
 curl -X POST http://127.0.0.1:5000/store/1/tag \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "furniture"}'
-curl -X POST http://127.0.0.1:5000/item/1/tag/1
+curl -X POST http://127.0.0.1:5000/item/1/tag/1 \
+  -H "Authorization: Bearer $TOKEN"
 
 # Change only the item's price (other fields are left as they are)
 curl -X PATCH http://127.0.0.1:5000/item/1 \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"price": "19.99"}'
-
-# Register a user (password must be 8-128 characters)
-curl -X POST http://127.0.0.1:5000/register \
-  -H "Content-Type: application/json" \
-  -d '{"username": "alice", "password": "correct-horse-battery"}'
 ```
 
 ### Error responses
@@ -129,6 +140,8 @@ Errors are returned as JSON with a `code`, a `status`, and usually a `message`.
 | Status | When                                                                           |
 | ------ | ------------------------------------------------------------------------------ |
 | 400    | Linking an item and a tag that belong to different stores                      |
+| 401    | Wrong login credentials, or a missing, invalid, or expired token               |
+| 403    | Deleting a user account other than your own                                    |
 | 404    | The store, item, tag, or user does not exist, or the tag is not linked to the item |
 | 409    | A duplicate name in the same store, a duplicate store name or username, or a tag that is already linked to an item |
 | 422    | The request body is missing a required field or has an invalid one (including names or passwords outside the allowed length) |
@@ -153,7 +166,7 @@ Dockerfile        Container image definition
 ## Next steps
 
 - [x] User registration with hashed passwords
-- [ ] Login endpoint and JWT-protected routes
+- [x] Login endpoint and JWT-protected routes
 - [ ] Database migrations
 
 ## License
