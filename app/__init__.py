@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 
 from app.config import Config
 from app.extensions import api, db, jwt
+from app.models import TokenBlocklistModel
 from app.resources.item import bp as item_bp
 from app.resources.store import bp as store_bp
 from app.resources.tag import bp as tag_bp
@@ -21,6 +22,20 @@ def register_jwt_callback(jwt):
         return jsonify({
             "message": error,
             "error": "invalid_token"
+        }), 401
+
+    @jwt.token_in_blocklist_loader
+    def is_token_revoked(jwt_header, jwt_payload):
+        query = db.select(TokenBlocklistModel.id).where(
+            TokenBlocklistModel.jti == jwt_payload["jti"]
+        )
+        return db.session.scalar(query) is not None
+
+    @jwt.revoked_token_loader
+    def revoked_token_callback(jwt_header, jwt_payload):
+        return jsonify({
+            "message": "The token has been revoked.",
+            "error": "token_revoked"
         }), 401
 
     @jwt.unauthorized_loader

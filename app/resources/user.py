@@ -1,9 +1,11 @@
+import time
+
 from flask.views import MethodView
-from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
+from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity, jwt_required
 from flask_smorest import Blueprint
 
 from app.extensions import db
-from app.models import UserModel
+from app.models import TokenBlocklistModel, UserModel
 from app.resources.helpers import abort_with, commit_or_abort, message_response
 from app.schemas import UserSchema
 from app.security import hash_password, verify_password
@@ -41,6 +43,21 @@ class UserLogin(MethodView):
             return {"access_token": access_token}
 
         abort_with(401, "Invalid credentials.")
+
+
+@bp.route("/logout")
+class UserLogout(MethodView):
+    @jwt_required()
+    def post(self):
+        jwt_payload = get_jwt()
+
+        db.session.execute(
+            db.delete(TokenBlocklistModel).where(TokenBlocklistModel.exp < int(time.time()))
+        )
+        db.session.add(TokenBlocklistModel(jti=jwt_payload["jti"], exp=jwt_payload["exp"]))
+        commit_or_abort("An error occurred while logging out.")
+
+        return message_response(200, "User logged out.")
 
 
 @bp.route("/user/<int:user_id>")

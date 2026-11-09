@@ -11,6 +11,7 @@ A REST API for managing stores, the items they sell, and tags that group items w
 - Cascading deletes: deleting a store removes its items and tags
 - User registration and login with Argon2 password hashing (passwords are never returned in responses)
 - JWT authentication: creating, updating, and deleting data requires a bearer token
+- Logout revokes the current token through a database-backed blocklist (expired entries are pruned on each logout)
 - Request/response validation with Marshmallow (names are 1–80 characters, passwords 8–128)
 - Interactive API docs at `/swagger-ui`
 - SQLite by default; configurable via `DATABASE_URL`
@@ -90,10 +91,11 @@ docker run -dp 5000:5000 --env-file .env --name flask-container flask-demo
 | DELETE | `/tag/<tag_id>`                   | JWT  | Delete a tag                          |
 | POST   | `/register`                       |      | Register a user                       |
 | POST   | `/login`                          |      | Log in and receive an access token    |
+| POST   | `/logout`                         | JWT  | Log out and revoke the current token  |
 | GET    | `/user/<user_id>`                 | JWT  | Get a user (id and username only)     |
 | DELETE | `/user/<user_id>`                 | JWT  | Delete your own account               |
 
-Endpoints marked JWT need an `Authorization: Bearer <access_token>` header. Get a token from `/login`. A missing, invalid, or expired token returns 401.
+Endpoints marked JWT need an `Authorization: Bearer <access_token>` header. Get a token from `/login`. A missing, invalid, expired, or revoked (logged-out) token returns 401.
 
 ### Example
 
@@ -134,6 +136,10 @@ curl -X PATCH http://127.0.0.1:5000/item/1 \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"price": "19.99"}'
+
+# Log out (the token stops working immediately)
+curl -X POST http://127.0.0.1:5000/logout \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Error responses
@@ -143,7 +149,7 @@ Errors are returned as JSON with a `code`, a `status`, and usually a `message`.
 | Status | When                                                                           |
 | ------ | ------------------------------------------------------------------------------ |
 | 400    | Linking an item and a tag that belong to different stores                      |
-| 401    | Wrong login credentials, or a missing, invalid, or expired token               |
+| 401    | Wrong login credentials, or a missing, invalid, expired, or revoked token      |
 | 403    | Deleting a user account other than your own                                    |
 | 404    | The store, item, tag, or user does not exist, or the tag is not linked to the item |
 | 409    | A duplicate name in the same store, a duplicate store name or username, or a tag that is already linked to an item |
@@ -159,7 +165,7 @@ app/
   config.py           Configuration loaded from environment variables
   extensions.py       Shared extension instances (db, api, jwt)
   security.py         Password hashing and verification
-  models/             SQLAlchemy models (store, item, tag, items_tags, user)
+  models/             SQLAlchemy models (store, item, tag, items_tags, user, token_blocklist)
   resources/          Flask-Smorest blueprints (store, item, tag, user) and shared helpers (helpers)
   schemas/            Marshmallow schemas (plain, item, store, tag, user) and shared validators (common)
 .env.example          Template for the .env file
@@ -175,6 +181,7 @@ Dockerfile            Container image definition
 
 - [x] User registration with hashed passwords
 - [x] Login endpoint and JWT-protected routes
+- [x] Logout with token revocation
 - [ ] Database migrations
 
 ## License
