@@ -1,7 +1,13 @@
 import time
 
 from flask.views import MethodView
-from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity, jwt_required
+from flask_jwt_extended import (
+    create_access_token,
+    create_refresh_token,
+    get_jwt,
+    get_jwt_identity,
+    jwt_required,
+)
 from flask_smorest import Blueprint
 
 from app.extensions import db
@@ -39,15 +45,28 @@ class UserLogin(MethodView):
         user = db.session.scalar(query)
 
         if user and verify_password(user_data["password"], user.password):
-            access_token = create_access_token(identity=str(user.id))
-            return {"access_token": access_token}
+            access_token = create_access_token(identity=str(user.id), fresh=True)
+            refresh_token = create_refresh_token(identity=str(user.id))
+            return {"access_token": access_token, "refresh_token": refresh_token}
 
         abort_with(401, "Invalid credentials.")
 
 
+@bp.route("/refresh")
+class TokenRefresh(MethodView):
+    @jwt_required(refresh=True)
+    def post(self):
+        user_id = get_jwt_identity()
+        if db.session.get(UserModel, int(user_id)) is None:
+            abort_with(401, "The user no longer exists.")
+
+        new_token = create_access_token(identity=user_id, fresh=False)
+        return {"access_token": new_token}
+
+
 @bp.route("/logout")
 class UserLogout(MethodView):
-    @jwt_required()
+    @jwt_required(verify_type=False)
     def post(self):
         jwt_payload = get_jwt()
 
@@ -67,7 +86,7 @@ class User(MethodView):
     def get(self, user_id):
         return db.get_or_404(UserModel, user_id)
 
-    @jwt_required()
+    @jwt_required(fresh=True)
     def delete(self, user_id):
         if get_jwt_identity() != str(user_id):
             abort_with(403, "You can only delete your own account.")

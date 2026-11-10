@@ -11,7 +11,8 @@ A REST API for managing stores, the items they sell, and tags that group items w
 - Cascading deletes: deleting a store removes its items and tags
 - User registration and login with Argon2 password hashing (passwords are never returned in responses)
 - JWT authentication: creating, updating, and deleting data requires a bearer token
-- Logout revokes the current token through a database-backed blocklist (expired entries are pruned on each logout)
+- Refresh tokens: get a new access token without logging in again; deleting a store or a user account still requires a fresh token from `/login`
+- Logout revokes the access or refresh token it is called with through a database-backed blocklist (expired entries are pruned on each logout)
 - Request/response validation with Marshmallow (names are 1–80 characters, passwords 8–128)
 - Interactive API docs at `/swagger-ui`
 - SQLite by default; configurable via `DATABASE_URL`
@@ -61,6 +62,8 @@ cp .env.example .env
 
 Then set `JWT_SECRET_KEY` in `.env` to a long random string.
 
+Access tokens expire after 15 minutes and refresh tokens after 7 days. To change this, edit `JWT_ACCESS_TOKEN_EXPIRES` and `JWT_REFRESH_TOKEN_EXPIRES` in `app/config.py`.
+
 ### Docker
 
 Run the following commands if you want to run the API in a Docker container. The API will be available at the same URL as above. The image does not contain your `.env`, so pass variables at runtime.
@@ -72,30 +75,38 @@ docker run -dp 5000:5000 --env-file .env --name flask-container flask-demo
 
 ## API overview
 
-| Method | Endpoint                          | Auth | Description                           |
-| ------ | --------------------------------- | ---- | ------------------------------------- |
-| GET    | `/store`                          |      | List all stores                       |
-| POST   | `/store`                          | JWT  | Create a store                        |
-| GET    | `/store/<store_id>`               |      | Get a store                           |
-| DELETE | `/store/<store_id>`               | JWT  | Delete a store, its items and tags    |
-| GET    | `/store/<store_id>/tag`           |      | List a store's tags                   |
-| POST   | `/store/<store_id>/tag`           | JWT  | Create a tag in a store               |
-| GET    | `/item`                           |      | List all items                        |
-| POST   | `/item`                           | JWT  | Create an item                        |
-| GET    | `/item/<item_id>`                 |      | Get an item                           |
-| PATCH  | `/item/<item_id>`                 | JWT  | Partially update an item's name/price |
-| DELETE | `/item/<item_id>`                 | JWT  | Delete an item                        |
-| POST   | `/item/<item_id>/tag/<tag_id>`    | JWT  | Link a tag to an item                 |
-| DELETE | `/item/<item_id>/tag/<tag_id>`    | JWT  | Unlink a tag from an item             |
-| GET    | `/tag/<tag_id>`                   |      | Get a tag                             |
-| DELETE | `/tag/<tag_id>`                   | JWT  | Delete a tag                          |
-| POST   | `/register`                       |      | Register a user                       |
-| POST   | `/login`                          |      | Log in and receive an access token    |
-| POST   | `/logout`                         | JWT  | Log out and revoke the current token  |
-| GET    | `/user/<user_id>`                 | JWT  | Get a user (id and username only)     |
-| DELETE | `/user/<user_id>`                 | JWT  | Delete your own account               |
+| Method | Endpoint                          | Auth          | Description                                   |
+| ------ | --------------------------------- | ------------- | --------------------------------------------- |
+| GET    | `/store`                          |               | List all stores                               |
+| POST   | `/store`                          | Access        | Create a store                                |
+| GET    | `/store/<store_id>`               |               | Get a store                                   |
+| DELETE | `/store/<store_id>`               | Fresh access  | Delete a store, its items and tags            |
+| GET    | `/store/<store_id>/tag`           |               | List a store's tags                           |
+| POST   | `/store/<store_id>/tag`           | Access        | Create a tag in a store                       |
+| GET    | `/item`                           |               | List all items                                |
+| POST   | `/item`                           | Access        | Create an item                                |
+| GET    | `/item/<item_id>`                 |               | Get an item                                   |
+| PATCH  | `/item/<item_id>`                 | Access        | Partially update an item's name/price         |
+| DELETE | `/item/<item_id>`                 | Access        | Delete an item                                |
+| POST   | `/item/<item_id>/tag/<tag_id>`    | Access        | Link a tag to an item                         |
+| DELETE | `/item/<item_id>/tag/<tag_id>`    | Access        | Unlink a tag from an item                     |
+| GET    | `/tag/<tag_id>`                   |               | Get a tag                                     |
+| DELETE | `/tag/<tag_id>`                   | Access        | Delete a tag                                  |
+| POST   | `/register`                       |               | Register a user                               |
+| POST   | `/login`                          |               | Log in and receive an access and refresh token |
+| POST   | `/refresh`                        | Refresh       | Get a new (non-fresh) access token            |
+| POST   | `/logout`                         | Either        | Log out and revoke the token that was sent    |
+| GET    | `/user/<user_id>`                 | Access        | Get a user (id and username only)             |
+| DELETE | `/user/<user_id>`                 | Fresh access  | Delete your own account                       |
 
-Endpoints marked JWT need an `Authorization: Bearer <access_token>` header. Get a token from `/login`. A missing, invalid, expired, or revoked (logged-out) token returns 401.
+Endpoints with an Auth value need an `Authorization: Bearer <token>` header:
+
+- **Access**: any access token, from `/login` or `/refresh`.
+- **Fresh access**: an access token from `/login`. Tokens from `/refresh` are not fresh, so log in again before these actions.
+- **Refresh**: the refresh token from `/login`.
+- **Either**: an access or a refresh token. To fully log out, call `/logout` once with each.
+
+A missing, invalid, expired, or revoked (logged-out) token returns 401, and so does a non-fresh token on an endpoint that needs a fresh one.
 
 ### Example
 
@@ -105,11 +116,12 @@ curl -X POST http://127.0.0.1:5000/register \
   -H "Content-Type: application/json" \
   -d '{"username": "alice", "password": "correct-horse-battery"}'
 
-# Log in and copy the "access_token" from the response
+# Log in and copy the "access_token" and "refresh_token" from the response
 curl -X POST http://127.0.0.1:5000/login \
   -H "Content-Type: application/json" \
   -d '{"username": "alice", "password": "correct-horse-battery"}'
 TOKEN=<paste the access_token here>
+REFRESH_TOKEN=<paste the refresh_token here>
 
 # Create a store
 curl -X POST http://127.0.0.1:5000/store \
@@ -137,9 +149,15 @@ curl -X PATCH http://127.0.0.1:5000/item/1 \
   -H "Content-Type: application/json" \
   -d '{"price": "19.99"}'
 
-# Log out (the token stops working immediately)
+# When the access token expires, get a new one with the refresh token
+curl -X POST http://127.0.0.1:5000/refresh \
+  -H "Authorization: Bearer $REFRESH_TOKEN"
+
+# Log out by revoking both tokens (each stops working immediately)
 curl -X POST http://127.0.0.1:5000/logout \
   -H "Authorization: Bearer $TOKEN"
+curl -X POST http://127.0.0.1:5000/logout \
+  -H "Authorization: Bearer $REFRESH_TOKEN"
 ```
 
 ### Error responses
@@ -149,7 +167,7 @@ Errors are returned as JSON with a `code`, a `status`, and usually a `message`.
 | Status | When                                                                           |
 | ------ | ------------------------------------------------------------------------------ |
 | 400    | Linking an item and a tag that belong to different stores                      |
-| 401    | Wrong login credentials, or a missing, invalid, expired, or revoked token      |
+| 401    | Wrong login credentials; a missing, invalid, expired, or revoked token; a non-fresh token where a fresh one is required; or a refresh token whose user was deleted |
 | 403    | Deleting a user account other than your own                                    |
 | 404    | The store, item, tag, or user does not exist, or the tag is not linked to the item |
 | 409    | A duplicate name in the same store, a duplicate store name or username, or a tag that is already linked to an item |
@@ -182,6 +200,7 @@ Dockerfile            Container image definition
 - [x] User registration with hashed passwords
 - [x] Login endpoint and JWT-protected routes
 - [x] Logout with token revocation
+- [x] Refresh tokens and fresh-token checks
 - [ ] Database migrations
 
 ## License

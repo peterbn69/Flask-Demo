@@ -24,12 +24,12 @@ def register_jwt_callback(jwt):
             "error": "invalid_token"
         }), 401
 
-    @jwt.token_in_blocklist_loader
-    def is_token_revoked(jwt_header, jwt_payload):
-        query = db.select(TokenBlocklistModel.id).where(
-            TokenBlocklistModel.jti == jwt_payload["jti"]
-        )
-        return db.session.scalar(query) is not None
+    @jwt.needs_fresh_token_loader
+    def token_not_fresh_callback(jwt_header, jwt_payload):
+        return jsonify({
+            "message": "The token is not fresh.",
+            "error": "fresh_token_required"
+        }), 401
 
     @jwt.revoked_token_loader
     def revoked_token_callback(jwt_header, jwt_payload):
@@ -37,6 +37,13 @@ def register_jwt_callback(jwt):
             "message": "The token has been revoked.",
             "error": "token_revoked"
         }), 401
+
+    @jwt.token_in_blocklist_loader
+    def is_token_revoked(jwt_header, jwt_payload):
+        query = db.select(TokenBlocklistModel.id).where(
+            TokenBlocklistModel.jti == jwt_payload["jti"]
+        )
+        return db.session.scalar(query) is not None
 
     @jwt.unauthorized_loader
     def missing_token_callback(error):

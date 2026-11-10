@@ -36,7 +36,7 @@ class Store(MethodView):
     def get(self, store_id):
         return db.get_or_404(StoreModel, store_id)
 
-    @jwt_required()
+    @jwt_required(fresh=True)
     def delete(self, store_id):
         store = db.get_or_404(StoreModel, store_id)
 
