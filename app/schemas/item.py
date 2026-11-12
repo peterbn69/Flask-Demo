@@ -1,4 +1,5 @@
 from marshmallow import Schema, fields
+from marshmallow.validate import Length
 
 from app.schemas.common import name_length
 from app.schemas.plain import PlainItemSchema, PlainStoreSchema, PlainTagSchema
@@ -6,6 +7,7 @@ from app.schemas.plain import PlainItemSchema, PlainStoreSchema, PlainTagSchema
 
 class ItemUpdateSchema(Schema):
     name = fields.Str(validate=name_length)
+    description = fields.Str(required=False, allow_none=True, validate=Length(max=255))
     price = fields.Decimal(as_string=True)
 
 

@@ -5,3 +5,4 @@ flask-sqlalchemy
 flask-jwt-extended
 argon2-cffi
 flask-migrate
+gunicorn; sys_platform != "win32"

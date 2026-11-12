@@ -45,8 +45,9 @@ class UserLogin(MethodView):
         user = db.session.scalar(query)
 
         if user and verify_password(user_data["password"], user.password):
-            access_token = create_access_token(identity=str(user.id), fresh=True)
-            refresh_token = create_refresh_token(identity=str(user.id))
+            claims = {"token_version": user.token_version}
+            access_token = create_access_token(identity=str(user.id), fresh=True, additional_claims=claims)
+            refresh_token = create_refresh_token(identity=str(user.id), additional_claims=claims)
             return {"access_token": access_token, "refresh_token": refresh_token}
 
         abort_with(401, "Invalid credentials.")
@@ -60,7 +61,11 @@ class TokenRefresh(MethodView):
         if db.session.get(UserModel, int(user_id)) is None:
             abort_with(401, "The user no longer exists.")
 
-        new_token = create_access_token(identity=user_id, fresh=False)
+        new_token = create_access_token(
+            identity=user_id,
+            fresh=False,
+            additional_claims={"token_version": get_jwt()["token_version"]},
+        )
         return {"access_token": new_token}
 
 

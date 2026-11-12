@@ -2,7 +2,7 @@ from flask import Flask, jsonify
 
 from app.config import Config
 from app.extensions import api, db, jwt, migrate
-from app.models import TokenBlocklistModel
+from app.models import TokenBlocklistModel, UserModel
 from app.resources.item import bp as item_bp
 from app.resources.store import bp as store_bp
 from app.resources.tag import bp as tag_bp
@@ -40,6 +40,17 @@ def register_jwt_callback(jwt):
 
     @jwt.token_in_blocklist_loader
     def is_token_revoked(jwt_header, jwt_payload):
+        try:
+            user_id = int(jwt_payload["sub"])
+        except (KeyError, TypeError, ValueError):
+            return True
+
+        current_version = db.session.scalar(
+            db.select(UserModel.token_version).where(UserModel.id == user_id)
+        )
+        if current_version is None or jwt_payload.get("token_version") != current_version:
+            return True
+
         query = db.select(TokenBlocklistModel.id).where(
             TokenBlocklistModel.jti == jwt_payload["jti"]
         )

@@ -13,6 +13,7 @@ A REST API for managing stores, the items they sell, and tags that group items w
 - JWT authentication: creating, updating, and deleting data requires a bearer token
 - Refresh tokens: get a new access token without logging in again; deleting a store or a user account still requires a fresh token from `/login`
 - Logout revokes the access or refresh token it is called with through a database-backed blocklist (expired entries are pruned on each logout)
+- Deleting an account invalidates all of its access and refresh tokens, including if its numeric user ID is reused
 - Request/response validation with Marshmallow (names are 1–80 characters, passwords 8–128)
 - Interactive API docs at `/swagger-ui`
 - SQLite by default; configurable via `DATABASE_URL`
@@ -52,7 +53,7 @@ The API is now available at <http://127.0.0.1:5000> and the Swagger UI at <http:
 
 ### Database migrations
 
-The schema is managed with [Flask-Migrate](https://flask-migrate.readthedocs.io/), and the revision scripts are in `migrations/`. Tables are not created on startup, so run `flask db upgrade` after cloning and whenever you pull new migrations.
+The schema is managed with [Flask-Migrate](https://flask-migrate.readthedocs.io/), and the revision scripts are in `migrations/`. Local development does not create tables on startup, so run `flask db upgrade` after cloning and whenever you pull new migrations. The Docker container applies migrations before starting the server.
 
 After changing a model, generate a new revision and apply it:
 
@@ -62,6 +63,8 @@ flask db upgrade
 ```
 
 Review the generated file in `migrations/versions/` before upgrading, because Alembic does not detect every change (for example, renamed columns or tables).
+
+When adding a required column to a populated table, update the migration to backfill existing rows before enforcing `NOT NULL`. Python model defaults only populate new rows.
 
 ### Configuration
 
@@ -83,12 +86,14 @@ Access tokens expire after 15 minutes and refresh tokens after 7 days. To change
 
 ### Docker
 
-Run the following commands if you want to run the API in a Docker container. The API will be available at the same URL as above. The image does not contain your `.env`, so pass variables at runtime.
+The container runs Gunicorn as a non-root user and applies database migrations before starting the server. The API will be available at the same URL as above. The image does not contain your `.env`, so pass variables at runtime.
 
 ```bash
 docker build -t flask-demo .
-docker run -dp 5000:5000 --env-file .env --name flask-container flask-demo
+docker run -d -p 5000:5000 --env-file .env --mount source=flask-demo-data,target=/app/instance --name flask-container flask-demo
 ```
+
+With the default SQLite configuration, the named volume stores the database and token blocklist so they survive container replacement. Reuse the same volume when recreating the container. Gunicorn is installed inside the Linux image; native Windows development continues to use `flask run`.
 
 ## API overview
 
@@ -103,7 +108,7 @@ docker run -dp 5000:5000 --env-file .env --name flask-container flask-demo
 | GET    | `/item`                           |               | List all items                                |
 | POST   | `/item`                           | Access        | Create an item                                |
 | GET    | `/item/<item_id>`                 |               | Get an item                                   |
-| PATCH  | `/item/<item_id>`                 | Access        | Partially update an item's name/price         |
+| PATCH  | `/item/<item_id>`                 | Access        | Partially update an item's name, description, or price |
 | DELETE | `/item/<item_id>`                 | Access        | Delete an item                                |
 | POST   | `/item/<item_id>/tag/<tag_id>`    | Access        | Link a tag to an item                         |
 | DELETE | `/item/<item_id>/tag/<tag_id>`    | Access        | Unlink a tag from an item                     |
@@ -124,6 +129,8 @@ Endpoints with an Auth value need an `Authorization: Bearer <token>` header:
 - **Either**: an access or a refresh token. To fully log out, call `/logout` once with each.
 
 A missing, invalid, expired, or revoked (logged-out) token returns 401, and so does a non-fresh token on an endpoint that needs a fresh one.
+
+Access and refresh tokens include an account-specific version that is checked on every authenticated request. Deleting the account makes its tokens unusable; a new account receives a different version even if its numeric user ID is reused.
 
 ### Example
 
@@ -184,7 +191,7 @@ Errors are returned as JSON with a `code`, a `status`, and usually a `message`.
 | Status | When                                                                           |
 | ------ | ------------------------------------------------------------------------------ |
 | 400    | Linking an item and a tag that belong to different stores                      |
-| 401    | Wrong login credentials; a missing, invalid, expired, or revoked token; a non-fresh token where a fresh one is required; or a refresh token whose user was deleted |
+| 401    | Wrong login credentials; a missing, invalid, expired, or revoked token; a non-fresh token where a fresh one is required; or an access or refresh token whose account was deleted |
 | 403    | Deleting a user account other than your own                                    |
 | 404    | The store, item, tag, or user does not exist, or the tag is not linked to the item |
 | 409    | A duplicate name in the same store, a duplicate store name or username, or a tag that is already linked to an item |
