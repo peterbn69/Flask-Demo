@@ -4,3 +4,4 @@ python-dotenv
 flask-sqlalchemy
 flask-jwt-extended
 argon2-cffi
+flask-migrate

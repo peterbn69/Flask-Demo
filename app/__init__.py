@@ -1,7 +1,7 @@
 from flask import Flask, jsonify
 
 from app.config import Config
-from app.extensions import api, db, jwt
+from app.extensions import api, db, jwt, migrate
 from app.models import TokenBlocklistModel
 from app.resources.item import bp as item_bp
 from app.resources.store import bp as store_bp
@@ -61,9 +61,7 @@ def create_app(db_url=None):
         app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 
     db.init_app(app)
-
-    with app.app_context():
-        db.create_all()
+    migrate.init_app(app, db)
 
     api.init_app(app)
 

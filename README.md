@@ -16,6 +16,7 @@ A REST API for managing stores, the items they sell, and tags that group items w
 - Request/response validation with Marshmallow (names are 1–80 characters, passwords 8–128)
 - Interactive API docs at `/swagger-ui`
 - SQLite by default; configurable via `DATABASE_URL`
+- Database schema managed with Flask-Migrate (Alembic) migrations
 - Dockerfile included
 
 ## Requirements
@@ -38,13 +39,29 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
+# Create the database tables
+flask db upgrade
+
 # Run the development server
 flask run
 ```
 
 The API is now available at <http://127.0.0.1:5000> and the Swagger UI at <http://127.0.0.1:5000/swagger-ui>.
 
-`.flaskenv` sets `FLASK_APP=wsgi` and enables debug mode (auto-reload) for local development. Tables are created automatically on startup.
+`.flaskenv` sets `FLASK_APP=wsgi` and enables debug mode (auto-reload) for local development.
+
+### Database migrations
+
+The schema is managed with [Flask-Migrate](https://flask-migrate.readthedocs.io/), and the revision scripts are in `migrations/`. Tables are not created on startup, so run `flask db upgrade` after cloning and whenever you pull new migrations.
+
+After changing a model, generate a new revision and apply it:
+
+```bash
+flask db migrate -m "describe the change"
+flask db upgrade
+```
+
+Review the generated file in `migrations/versions/` before upgrading, because Alembic does not detect every change (for example, renamed columns or tables).
 
 ### Configuration
 
@@ -181,11 +198,12 @@ wsgi.py               Entry point (creates the app)
 app/
   __init__.py         Application factory (create_app)
   config.py           Configuration loaded from environment variables
-  extensions.py       Shared extension instances (db, api, jwt)
+  extensions.py       Shared extension instances (db, api, migrate, jwt)
   security.py         Password hashing and verification
   models/             SQLAlchemy models (store, item, tag, items_tags, user, token_blocklist)
   resources/          Flask-Smorest blueprints (store, item, tag, user) and shared helpers (helpers)
   schemas/            Marshmallow schemas (plain, item, store, tag, user) and shared validators (common)
+migrations/           Alembic configuration and revision scripts (versions/)
 .env.example          Template for the .env file
 requirements.txt      Python dependencies
 Dockerfile            Container image definition
@@ -201,7 +219,7 @@ Dockerfile            Container image definition
 - [x] Login endpoint and JWT-protected routes
 - [x] Logout with token revocation
 - [x] Refresh tokens and fresh-token checks
-- [ ] Database migrations
+- [x] Database migrations
 
 ## License
 

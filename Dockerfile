@@ -5,4 +5,4 @@ RUN pip install -r requirements.txt
 COPY . .
 ENV FLASK_DEBUG=0
 EXPOSE 5000
-CMD ["flask", "--app", "wsgi", "run", "--host", "0.0.0.0"]
+CMD ["sh", "-c", "flask --app wsgi db upgrade && flask --app wsgi run --host 0.0.0.0"]
